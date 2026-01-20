@@ -1,0 +1,9 @@
+{
+  "name": "VibeBudget Elite",
+  "short_name": "VibeBudget",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [{ "src": "https://fav.farm/💎", "sizes": "512x512", "type": "image/png" }]
+}
