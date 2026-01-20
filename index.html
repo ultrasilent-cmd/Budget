@@ -12,43 +12,50 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100;300;400;700&display=swap');
-        body { transition: background-color 0.8s ease; font-family: 'Inter', sans-serif; color: white; margin: 0; overflow: hidden; height: 100vh; }
+        body { transition: background-color 1.2s ease; font-family: 'Inter', sans-serif; color: white; margin: 0; overflow-x: hidden; min-height: 100vh; }
         .glass { background: rgba(255, 255, 255, 0.06); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 2.5rem; }
-        .dynamic-shadow { filter: drop-shadow(0 0 20px rgba(0,0,0,0.3)); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
         input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
     </style>
 </head>
-<body class="flex items-center justify-center p-4 bg-[#0f172a]" id="body-bg">
+<body class="flex flex-col items-center justify-start p-6 pt-12 bg-[#0f172a]" id="body-bg">
     <div class="w-full max-w-md space-y-8">
-        <div class="text-center">
-            <div class="flex justify-between items-center px-4 mb-6">
+        <div class="text-center space-y-2">
+            <div class="flex justify-between items-center mb-8">
                 <button onclick="setNewLimit()" class="text-[10px] uppercase tracking-[0.3em] text-white/40 hover:text-white bg-white/5 px-4 py-2 rounded-full transition-all">Setup</button>
-                <div id="day-badge" class="text-[10px] uppercase tracking-[0.3em] bg-emerald-500/20 text-emerald-400 px-4 py-2 rounded-full border border-emerald-500/20">Tag 1</div>
+                <div id="day-badge" class="text-[10px] uppercase tracking-[0.3em] bg-white/10 text-white/60 px-4 py-2 rounded-full">Tag geladen...</div>
             </div>
-            <div id="remaining" class="text-8xl font-thin tracking-tighter dynamic-shadow transition-all">€0.00</div>
-            <div id="daily-vibe" class="mt-4 text-xs font-light tracking-widest uppercase opacity-80 transition-colors">Vibe wird geladen...</div>
+            <div id="remaining" class="text-8xl font-thin tracking-tighter drop-shadow-2xl transition-all">€0.00</div>
+            <div id="daily-vibe" class="text-xs font-light tracking-widest uppercase opacity-60">Vibe Check...</div>
         </div>
 
-        <div class="glass p-6 shadow-2xl relative overflow-hidden">
+        <div class="glass p-6 shadow-2xl overflow-hidden">
             <canvas id="budgetChart" height="160"></canvas>
         </div>
 
-        <div class="glass p-3 flex items-center gap-3">
-            <input type="number" id="amount" inputmode="decimal" placeholder="0.00" class="flex-1 bg-transparent text-3xl p-4 outline-none text-white font-light placeholder-white/20">
-            <button onclick="addExpense()" class="bg-white text-slate-900 w-16 h-16 rounded-[1.8rem] font-bold text-4xl active:scale-90 transition-all shadow-xl flex items-center justify-center">−</button>
+        <div class="glass p-2 flex items-center gap-2">
+            <input type="number" id="amount" inputmode="decimal" placeholder="Betrag" 
+                onkeydown="if(event.key === 'Enter') addExpense()"
+                class="flex-1 bg-transparent text-2xl p-4 outline-none border-none text-white font-light placeholder-white/20">
+            <button onclick="addExpense()" id="add-btn"
+                class="bg-white text-slate-900 w-14 h-14 rounded-2xl font-bold text-3xl flex items-center justify-center active:scale-75 transition-all shadow-lg">
+                −
+            </button>
         </div>
 
-        <div class="flex justify-center gap-4 opacity-30 text-[9px] uppercase tracking-[0.2em]">
-            <button onclick="exportCSV()">CSV Export</button>
-            <span>•</span>
-            <button onclick="clearHistory()">Reset Week</button>
+        <div class="space-y-4">
+            <div class="flex justify-between items-center px-2">
+                <h2 class="text-[10px] uppercase tracking-[0.3em] font-bold opacity-40">Aktivität</h2>
+                <button onclick="clearHistory()" class="text-[9px] uppercase tracking-widest text-red-400/50 hover:text-red-400">Reset</button>
+            </div>
+            <div id="history" class="flex gap-4 overflow-x-auto pb-4 no-scrollbar"></div>
         </div>
     </div>
 
     <script>
         if ('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js'); }
 
-        let state = JSON.parse(localStorage.getItem('vibeDataV3') || '{"limit":200,"rem":200,"history":[],"chartData":[200], "startDay": 1}'); 
+        let state = JSON.parse(localStorage.getItem('vibeDataV5') || '{"limit":200,"rem":200,"history":[],"chartData":[200], "startDay": 1}'); 
         let chart;
 
         function initChart() {
@@ -72,7 +79,6 @@
         }
 
         function render() {
-            // Wochen-Logik (1 = Mo, 7 = So)
             const today = new Date().getDay() || 7;
             let daysPassed = (today - state.startDay + 7) % 7 + 1;
             let daysRemaining = 7 - daysPassed + 1;
@@ -83,40 +89,47 @@
             const dailyAvailable = Math.max(0, state.rem / daysRemaining);
             document.getElementById('daily-vibe').innerText = `€${dailyAvailable.toFixed(2)} pro Tag verbleibend`;
 
-            // Smart Dynamic Colors
             const budgetHealth = state.rem / state.limit;
-            let color = "#0f172a"; // Default Dark
-            if (budgetHealth < 0.15) color = "#450a0a"; // Kritisch Rot
-            else if (budgetHealth < 0.4) color = "#451a03"; // Warnung Orange
-            else if (budgetHealth > 0.8) color = "#064e3b"; // Safe Grün
+            let color = "#0f172a"; 
+            if (budgetHealth < 0.2) color = "#450a0a"; 
+            else if (budgetHealth < 0.5) color = "#451a03"; 
+            else if (budgetHealth > 0.8) color = "#064e3b"; 
             
             document.getElementById('body-bg').style.backgroundColor = color;
             document.getElementById('nav-theme').setAttribute("content", color);
 
-            // Chart Update
             chart.data.labels = state.chartData.map((_, i) => i);
             chart.data.datasets[0].data = state.chartData;
             chart.update();
 
-            localStorage.setItem('vibeDataV3', JSON.stringify(state));
+            document.getElementById('history').innerHTML = state.history.map(item => `
+                <div class="glass min-w-[120px] p-4 text-center">
+                    <div class="text-[8px] opacity-40 mb-1">${item.date}</div>
+                    <div class="font-bold text-lg text-white">€${item.amount.toFixed(2)}</div>
+                </div>
+            `).join('') || '<div class="opacity-20 text-[10px] p-4 uppercase">Keine Daten</div>';
+
+            localStorage.setItem('vibeDataV5', JSON.stringify(state));
         }
 
         function addExpense() {
             const input = document.getElementById('amount');
             const val = parseFloat(input.value);
             if (val > 0) {
-                if (navigator.vibrate) navigator.vibrate(40); // Pixel Haptic Feedback
+                if (navigator.vibrate) navigator.vibrate(30); 
                 state.rem -= val;
                 state.chartData.push(state.rem);
-                state.history.unshift({ amount: val, date: new Date().toLocaleTimeString() });
+                state.history.unshift({ amount: val, date: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) });
                 input.value = '';
+                // Fokus behalten für schnelle Eingaben
+                input.focus();
                 render();
             }
         }
 
         function setNewLimit() {
             const newLim = prompt("Neues Wochen-Limit?", state.limit);
-            const newDay = prompt("An welchem Tag startet deine Woche? (1=Mo, 7=So)", state.startDay);
+            const newDay = prompt("Wochenstart (1=Mo, 7=So)?", state.startDay);
             if (newLim) {
                 state.limit = parseFloat(newLim);
                 state.rem = state.limit;
@@ -127,12 +140,13 @@
             }
         }
 
-        function clearHistory() { if(confirm("Woche neu starten?")) { state.rem = state.limit; state.chartData = [state.limit]; state.history = []; render(); } }
-        
-        function exportCSV() {
-            let csv = "Zeit,Betrag\n" + state.history.map(i => `${i.date},${i.amount}`).join("\n");
-            const blob = new Blob([csv], { type: 'text/csv' });
-            window.open(URL.createObjectURL(blob));
+        function clearHistory() { 
+            if(confirm("Woche neu starten?")) { 
+                state.rem = state.limit; 
+                state.chartData = [state.limit]; 
+                state.history = []; 
+                render(); 
+            } 
         }
 
         window.onload = () => { initChart(); render(); };
