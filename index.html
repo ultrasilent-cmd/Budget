@@ -16,6 +16,8 @@
         .glass { background: rgba(255, 255, 255, 0.06); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 2.5rem; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .undo-btn { transition: all 0.3s ease; }
+        .undo-btn:active { transform: scale(0.8) rotate(-45deg); }
     </style>
 </head>
 <body class="flex flex-col items-center justify-start p-6 pt-12 bg-[#0f172a]" id="body-bg">
@@ -45,8 +47,11 @@
 
         <div class="space-y-4">
             <div class="flex justify-between items-center px-2">
-                <h2 class="text-[10px] uppercase tracking-[0.3em] font-bold opacity-40">Aktivität</h2>
-                <button onclick="clearHistory()" class="text-[9px] uppercase tracking-widest text-red-400/50 hover:text-red-400">Reset</button>
+                <div class="flex items-center gap-3">
+                    <h2 class="text-[10px] uppercase tracking-[0.3em] font-bold opacity-40">Aktivität</h2>
+                    <button onclick="undoLast()" class="undo-btn opacity-40 hover:opacity-100 text-xl" title="Rückgängig">↩</button>
+                </div>
+                <button onclick="clearHistory()" class="text-[9px] uppercase tracking-widest text-red-400/50 hover:text-red-400">Reset Week</button>
             </div>
             <div id="history" class="flex gap-4 overflow-x-auto pb-4 no-scrollbar"></div>
         </div>
@@ -55,7 +60,7 @@
     <script>
         if ('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js'); }
 
-        let state = JSON.parse(localStorage.getItem('vibeDataV5') || '{"limit":200,"rem":200,"history":[],"chartData":[200], "startDay": 1}'); 
+        let state = JSON.parse(localStorage.getItem('vibeDataV6') || '{"limit":200,"rem":200,"history":[],"chartData":[200], "startDay": 1}'); 
         let chart;
 
         function initChart() {
@@ -102,14 +107,15 @@
             chart.data.datasets[0].data = state.chartData;
             chart.update();
 
-            document.getElementById('history').innerHTML = state.history.map(item => `
-                <div class="glass min-w-[120px] p-4 text-center">
+            document.getElementById('history').innerHTML = state.history.map((item, index) => `
+                <div onclick="deleteEntry(${index})" class="glass min-w-[120px] p-4 text-center active:bg-white/10 transition-all cursor-pointer">
                     <div class="text-[8px] opacity-40 mb-1">${item.date}</div>
                     <div class="font-bold text-lg text-white">€${item.amount.toFixed(2)}</div>
+                    <div class="text-[7px] opacity-20 uppercase mt-1">Löschen</div>
                 </div>
             `).join('') || '<div class="opacity-20 text-[10px] p-4 uppercase">Keine Daten</div>';
 
-            localStorage.setItem('vibeDataV5', JSON.stringify(state));
+            localStorage.setItem('vibeDataV6', JSON.stringify(state));
         }
 
         function addExpense() {
@@ -121,10 +127,42 @@
                 state.chartData.push(state.rem);
                 state.history.unshift({ amount: val, date: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) });
                 input.value = '';
-                // Fokus behalten für schnelle Eingaben
-                input.focus();
                 render();
             }
+        }
+
+        function undoLast() {
+            if (state.history.length > 0) {
+                if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
+                const last = state.history.shift();
+                state.rem += last.amount;
+                state.chartData.pop();
+                render();
+            }
+        }
+
+        function deleteEntry(index) {
+            if(confirm("Diese Ausgabe löschen?")) {
+                const item = state.history[index];
+                state.rem += item.amount;
+                state.history.splice(index, 1);
+                // Wir berechnen die Chart-Daten neu, damit sie zum neuen Verlauf passen
+                recalculateChart();
+                render();
+            }
+        }
+
+        function recalculateChart() {
+            let current = state.limit;
+            let newData = [current];
+            // History ist von neu nach alt sortiert, für das Chart brauchen wir alt nach neu
+            let tempHistory = [...state.history].reverse();
+            tempHistory.forEach(item => {
+                current -= item.amount;
+                newData.push(current);
+            });
+            state.chartData = newData;
+            state.rem = current;
         }
 
         function setNewLimit() {
