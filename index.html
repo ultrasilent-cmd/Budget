@@ -9,6 +9,8 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#0f172a" id="theme-color-meta">
     
+    <link rel="manifest" href='data:application/manifest+json,{"name":"VibeBudget","short_name":"VibeBudget","start_url":".","display":"standalone","background_color":"#0f172a","theme_color":"#0f172a","icons":[{"src":"https://fav.farm/💎","sizes":"192x192","type":"image/png"}]}'>
+
     <title>VibeBudget Elite</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
@@ -17,64 +19,39 @@
     
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100;300;400;700&display=swap');
-        body { transition: background-color 1s ease; font-family: 'Inter', sans-serif; overflow-x: hidden; margin: 0; }
-        .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(15px); border: 1px solid rgba(255, 255, 255, 0.1); }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .dynamic-bg { transition: all 0.5s ease; }
+        body { transition: background-color 1s ease; font-family: 'Inter', sans-serif; overflow-x: hidden; margin: 0; background-color: #0f172a; }
+        .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(15px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 2.5rem; }
     </style>
 </head>
-<body class="flex items-center justify-center min-h-screen p-4 text-slate-100 bg-[#0f172a]">
+<body class="flex items-center justify-center min-h-screen p-4 text-slate-100">
 
     <div class="w-full max-w-md space-y-6">
         <div class="text-center">
             <div class="flex justify-between items-center px-4 mb-4">
-                <button onclick="setNewLimit()" class="text-[10px] uppercase tracking-[0.3em] text-slate-400 hover:text-white transition-all bg-white/5 px-3 py-1 rounded-full">Limit</button>
-                <button onclick="exportCSV()" class="text-[10px] uppercase tracking-[0.3em] text-slate-400 hover:text-emerald-400 transition-all bg-white/5 px-3 py-1 rounded-full">CSV Export</button>
+                <button onclick="setNewLimit()" class="text-[10px] uppercase tracking-[0.3em] text-slate-400 bg-white/5 px-3 py-1 rounded-full">Limit</button>
+                <button onclick="exportCSV()" class="text-[10px] uppercase tracking-[0.3em] text-slate-400 bg-white/5 px-3 py-1 rounded-full">CSV Export</button>
             </div>
             <div id="remaining" class="text-7xl font-thin tracking-tighter drop-shadow-2xl">€0.00</div>
-            <div id="daily-vibe" class="mt-3 text-xs font-light tracking-widest uppercase opacity-80">Berechne Daily Vibe...</div>
+            <div id="daily-vibe" class="mt-3 text-xs font-light tracking-widest uppercase opacity-80">Berechne...</div>
         </div>
 
-        <div class="glass p-5 rounded-[3rem] shadow-2xl">
+        <div class="glass p-5 shadow-2xl">
             <canvas id="budgetChart" height="180"></canvas>
         </div>
 
-        <div class="glass p-2 rounded-[2rem] flex items-center gap-2 pr-2">
+        <div class="glass p-2 flex items-center gap-2 pr-2">
             <input type="number" id="amount" inputmode="decimal" placeholder="0.00" 
-                class="flex-1 bg-transparent text-2xl p-4 outline-none border-none focus:ring-0 placeholder-slate-600 font-light">
+                class="flex-1 bg-transparent text-2xl p-4 outline-none border-none focus:ring-0 text-white font-light">
             <button onclick="addExpense()" id="action-btn"
-                class="dynamic-bg text-slate-900 w-14 h-14 rounded-2xl font-bold text-3xl flex items-center justify-center active:scale-75 shadow-lg">
-                +
-            </button>
+                class="bg-emerald-500 text-slate-900 w-14 h-14 rounded-2xl font-bold text-3xl flex items-center justify-center active:scale-75 shadow-lg">−</button>
         </div>
 
-        <div class="space-y-4">
-            <div class="flex justify-between items-center px-4 text-slate-500">
-                <h2 class="text-[10px] uppercase tracking-[0.2em] font-bold">Aktivität</h2>
-                <button onclick="clearHistory()" class="text-[10px] uppercase tracking-widest hover:text-red-400">Reset Week</button>
-            </div>
-            <div id="history" class="flex gap-4 overflow-x-auto p-2 no-scrollbar">
-                </div>
-        </div>
+        <div id="history" class="flex gap-4 overflow-x-auto p-2 no-scrollbar"></div>
     </div>
 
     <script>
-        let state = { limit: 200, remaining: 200, history: [], chartData: [200] };
+        let state = JSON.parse(localStorage.getItem('vibeBudgetData') || '{"limit":200,"remaining":200,"history":[],"chartData":[200]}');
         let chart;
-        const ALERT_THRESHOLD = 50;
-
-        const themeColors = {
-            good: { bg: '#064e3b', main: '#10b981', accent: '#34d399' },
-            mid: { bg: '#451a03', main: '#f59e0b', accent: '#fbbf24' },
-            bad: { bg: '#450a0a', main: '#ef4444', accent: '#f87171' }
-        };
-
-        window.onload = () => {
-            const saved = localStorage.getItem('vibeBudgetData');
-            if (saved) state = JSON.parse(saved);
-            initChart();
-            render();
-        };
 
         function initChart() {
             const ctx = document.getElementById('budgetChart').getContext('2d');
@@ -92,103 +69,22 @@
                         backgroundColor: 'rgba(255,255,255,0.05)'
                     }]
                 },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: { x: { display: false }, y: { display: false } }
-                }
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { display: false } } }
             });
         }
 
         function render() {
-            const percent = (state.remaining / state.limit) * 100;
-            let theme = themeColors.good;
-            if (percent < 20) theme = themeColors.bad;
-            else if (percent < 50) theme = themeColors.mid;
-
-            // Apply Theme
-            document.body.style.backgroundColor = theme.bg;
-            document.getElementById('theme-color-meta').setAttribute('content', theme.bg);
             document.getElementById('remaining').innerText = `€${state.remaining.toFixed(2)}`;
+            const daysLeft = 8 - (new Date().getDay() || 7);
+            document.getElementById('daily-vibe').innerText = `€${(state.remaining / daysLeft).toFixed(2)} pro Tag verfügbar`;
             
-            const btn = document.getElementById('action-btn');
-            btn.style.backgroundColor = theme.main;
-            btn.innerText = '−'; // Minus-Vibe
-
-            // Daily Logic
-            const daysLeft = 8 - (new Date().getDay() || 7); 
-            const daily = Math.max(0, state.remaining / daysLeft).toFixed(2);
-            const dailyEl = document.getElementById('daily-vibe');
-            dailyEl.innerText = `€${daily} pro Tag verfügbar`;
-            dailyEl.style.color = theme.accent;
-
             chart.data.labels = state.chartData.map((_, i) => i);
             chart.data.datasets[0].data = state.chartData;
             chart.update();
-
-            document.getElementById('history').innerHTML = state.history.length ? state.history.map(item => {
-                const isHigh = item.amount >= ALERT_THRESHOLD;
-                return `
-                <div class="glass min-w-[140px] p-4 rounded-[2rem] text-center border-t-2 ${isHigh ? 'border-rose-500 bg-rose-500/10' : 'border-transparent'} relative">
-                    ${isHigh ? '<span class="absolute -top-2 left-1/2 -translate-x-1/2 bg-rose-500 text-[7px] px-2 py-0.5 rounded-full font-bold uppercase">Big Spender</span>' : ''}
-                    <div class="text-[9px] text-slate-500 mb-1">${item.date}</div>
-                    <div class="font-bold text-xl ${isHigh ? 'text-rose-400' : 'text-white'}">€${item.amount.toFixed(2)}</div>
-                </div>
-                `;
-            }).join('') : '<div class="text-slate-600 text-[10px] uppercase tracking-widest p-4">Keine Ausgaben</div>';
+            localStorage.setItem('vibeBudgetData', JSON.stringify(state));
         }
 
         function addExpense() {
             const input = document.getElementById('amount');
             const val = parseFloat(input.value);
-            if (val > 0) {
-                state.remaining -= val;
-                state.chartData.push(state.remaining);
-                state.history.unshift({ 
-                    amount: val, 
-                    date: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) 
-                });
-                input.value = '';
-                save();
-            }
-        }
-
-        function exportCSV() {
-            let csv = "Zeit,Betrag\n";
-            state.history.forEach(item => { csv += `${item.date},${item.amount}\n`; });
-            const blob = new Blob([csv], { type: 'text/csv' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'VibeBudget_Export.csv';
-            a.click();
-        }
-
-        function save() {
-            localStorage.setItem('vibeBudgetData', JSON.stringify(state));
-            render();
-        }
-
-        function setNewLimit() {
-            const val = prompt("Wochen-Limit?", state.limit);
-            if (val) {
-                state.limit = parseFloat(val);
-                state.remaining = state.limit;
-                state.chartData = [state.limit];
-                state.history = [];
-                save();
-            }
-        }
-
-        function clearHistory() {
-            if(confirm("Woche zurücksetzen?")) {
-                state.remaining = state.limit;
-                state.chartData = [state.limit];
-                state.history = [];
-                save();
-            }
-        }
-    </script>
-</body>
-</html>
+            if (val > 0
