@@ -5,85 +5,136 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="theme-color" content="#0f172a">
+    <meta name="theme-color" content="#0f172a" id="nav-theme">
     <title>VibeBudget Elite</title>
     <link rel="manifest" href="manifest.json">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100;300;400;700&display=swap');
-        body { background-color: #0f172a; font-family: 'Inter', sans-serif; color: white; margin: 0; overflow-x: hidden; }
-        .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(15px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 2.5rem; }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
+        body { transition: background-color 0.8s ease; font-family: 'Inter', sans-serif; color: white; margin: 0; overflow: hidden; height: 100vh; }
+        .glass { background: rgba(255, 255, 255, 0.06); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 2.5rem; }
+        .dynamic-shadow { filter: drop-shadow(0 0 20px rgba(0,0,0,0.3)); }
+        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
     </style>
 </head>
-<body class="flex items-center justify-center min-h-screen p-4">
-    <div class="w-full max-w-md space-y-6">
+<body class="flex items-center justify-center p-4 bg-[#0f172a]" id="body-bg">
+    <div class="w-full max-w-md space-y-8">
         <div class="text-center">
-            <div class="flex justify-between items-center px-4 mb-4">
-                <button onclick="setNewLimit()" class="text-[10px] uppercase tracking-[0.3em] text-slate-400 hover:text-white bg-white/5 px-3 py-1 rounded-full">Limit</button>
-                <button onclick="exportCSV()" class="text-[10px] uppercase tracking-[0.3em] text-slate-400 hover:text-emerald-400 bg-white/5 px-3 py-1 rounded-full">Export</button>
+            <div class="flex justify-between items-center px-4 mb-6">
+                <button onclick="setNewLimit()" class="text-[10px] uppercase tracking-[0.3em] text-white/40 hover:text-white bg-white/5 px-4 py-2 rounded-full transition-all">Setup</button>
+                <div id="day-badge" class="text-[10px] uppercase tracking-[0.3em] bg-emerald-500/20 text-emerald-400 px-4 py-2 rounded-full border border-emerald-500/20">Tag 1</div>
             </div>
-            <div id="remaining" class="text-7xl font-thin tracking-tighter drop-shadow-2xl">€0.00</div>
-            <div id="daily-vibe" class="mt-3 text-xs font-light tracking-widest uppercase opacity-80 text-emerald-300">Berechne...</div>
+            <div id="remaining" class="text-8xl font-thin tracking-tighter dynamic-shadow transition-all">€0.00</div>
+            <div id="daily-vibe" class="mt-4 text-xs font-light tracking-widest uppercase opacity-80 transition-colors">Vibe wird geladen...</div>
         </div>
-        <div class="glass p-5"><canvas id="budgetChart" height="180"></canvas></div>
-        <div class="glass p-2 flex items-center gap-2 pr-2">
-            <input type="number" id="amount" inputmode="decimal" placeholder="0.00" class="flex-1 bg-transparent text-2xl p-4 outline-none text-white font-light">
-            <button onclick="addExpense()" class="bg-emerald-500 text-slate-900 w-14 h-14 rounded-2xl font-bold text-3xl active:scale-75 shadow-lg">−</button>
+
+        <div class="glass p-6 shadow-2xl relative overflow-hidden">
+            <canvas id="budgetChart" height="160"></canvas>
         </div>
-        <div class="space-y-4">
-            <div class="flex justify-between items-center px-4 text-slate-500">
-                <h2 class="text-[10px] uppercase tracking-[0.2em] font-bold">Aktivität</h2>
-                <button onclick="clearHistory()" class="text-[10px] uppercase tracking-widest hover:text-red-400">Reset</button>
-            </div>
-            <div id="history" class="flex gap-4 overflow-x-auto p-2 no-scrollbar"></div>
+
+        <div class="glass p-3 flex items-center gap-3">
+            <input type="number" id="amount" inputmode="decimal" placeholder="0.00" class="flex-1 bg-transparent text-3xl p-4 outline-none text-white font-light placeholder-white/20">
+            <button onclick="addExpense()" class="bg-white text-slate-900 w-16 h-16 rounded-[1.8rem] font-bold text-4xl active:scale-90 transition-all shadow-xl flex items-center justify-center">−</button>
+        </div>
+
+        <div class="flex justify-center gap-4 opacity-30 text-[9px] uppercase tracking-[0.2em]">
+            <button onclick="exportCSV()">CSV Export</button>
+            <span>•</span>
+            <button onclick="clearHistory()">Reset Week</button>
         </div>
     </div>
+
     <script>
         if ('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js'); }
-        let state = JSON.parse(localStorage.getItem('vibeBudgetData') || '{"limit":200,"remaining":200,"history":[],"chartData":[200]}');
+
+        let state = JSON.parse(localStorage.getItem('vibeDataV3') || '{"limit":200,"rem":200,"history":[],"chartData":[200], "startDay": 1}'); 
         let chart;
+
         function initChart() {
             const ctx = document.getElementById('budgetChart').getContext('2d');
             chart = new Chart(ctx, {
                 type: 'line',
-                data: { labels: state.chartData.map((_, i) => i), datasets: [{ data: state.chartData, borderColor: '#ffffff', borderWidth: 4, tension: 0.4, pointRadius: 0, fill: true, backgroundColor: 'rgba(255,255,255,0.05)' }] },
+                data: { 
+                    labels: state.chartData.map((_, i) => i), 
+                    datasets: [{ 
+                        data: state.chartData, 
+                        borderColor: '#ffffff', 
+                        borderWidth: 3, 
+                        tension: 0.4, 
+                        pointRadius: 0, 
+                        fill: true, 
+                        backgroundColor: 'rgba(255,255,255,0.03)' 
+                    }] 
+                },
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { display: false } } }
             });
         }
+
         function render() {
-            document.getElementById('remaining').innerText = `€${state.remaining.toFixed(2)}`;
-            const daysLeft = 8 - (new Date().getDay() || 7);
-            document.getElementById('daily-vibe').innerText = `€${Math.max(0, state.remaining / daysLeft).toFixed(2)} pro Tag verfügbar`;
+            // Wochen-Logik (1 = Mo, 7 = So)
+            const today = new Date().getDay() || 7;
+            let daysPassed = (today - state.startDay + 7) % 7 + 1;
+            let daysRemaining = 7 - daysPassed + 1;
+
+            document.getElementById('day-badge').innerText = `Tag ${daysPassed} / 7`;
+            document.getElementById('remaining').innerText = `€${state.rem.toFixed(2)}`;
+            
+            const dailyAvailable = Math.max(0, state.rem / daysRemaining);
+            document.getElementById('daily-vibe').innerText = `€${dailyAvailable.toFixed(2)} pro Tag verbleibend`;
+
+            // Smart Dynamic Colors
+            const budgetHealth = state.rem / state.limit;
+            let color = "#0f172a"; // Default Dark
+            if (budgetHealth < 0.15) color = "#450a0a"; // Kritisch Rot
+            else if (budgetHealth < 0.4) color = "#451a03"; // Warnung Orange
+            else if (budgetHealth > 0.8) color = "#064e3b"; // Safe Grün
+            
+            document.getElementById('body-bg').style.backgroundColor = color;
+            document.getElementById('nav-theme').setAttribute("content", color);
+
+            // Chart Update
             chart.data.labels = state.chartData.map((_, i) => i);
             chart.data.datasets[0].data = state.chartData;
             chart.update();
-            document.getElementById('history').innerHTML = state.history.map(item => `<div class="glass min-w-[140px] p-4 text-center"><div class="text-[9px] text-slate-500 mb-1">${item.date}</div><div class="font-bold text-xl">€${item.amount.toFixed(2)}</div></div>`).join('');
-            localStorage.setItem('vibeBudgetData', JSON.stringify(state));
+
+            localStorage.setItem('vibeDataV3', JSON.stringify(state));
         }
+
         function addExpense() {
             const input = document.getElementById('amount');
             const val = parseFloat(input.value);
             if (val > 0) {
-                state.remaining -= val;
-                state.chartData.push(state.remaining);
-                state.history.unshift({ amount: val, date: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) });
+                if (navigator.vibrate) navigator.vibrate(40); // Pixel Haptic Feedback
+                state.rem -= val;
+                state.chartData.push(state.rem);
+                state.history.unshift({ amount: val, date: new Date().toLocaleTimeString() });
                 input.value = '';
                 render();
             }
         }
+
         function setNewLimit() {
-            const val = prompt("Neues Limit?", state.limit);
-            if (val) { state.limit = parseFloat(val); state.remaining = state.limit; state.chartData = [state.limit]; state.history = []; render(); }
+            const newLim = prompt("Neues Wochen-Limit?", state.limit);
+            const newDay = prompt("An welchem Tag startet deine Woche? (1=Mo, 7=So)", state.startDay);
+            if (newLim) {
+                state.limit = parseFloat(newLim);
+                state.rem = state.limit;
+                state.startDay = parseInt(newDay) || 1;
+                state.chartData = [state.limit];
+                state.history = [];
+                render();
+            }
         }
-        function clearHistory() { if(confirm("Reset?")) { state.remaining = state.limit; state.chartData = [state.limit]; state.history = []; render(); } }
+
+        function clearHistory() { if(confirm("Woche neu starten?")) { state.rem = state.limit; state.chartData = [state.limit]; state.history = []; render(); } }
+        
         function exportCSV() {
             let csv = "Zeit,Betrag\n" + state.history.map(i => `${i.date},${i.amount}`).join("\n");
             const blob = new Blob([csv], { type: 'text/csv' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a'); a.href = url; a.download = 'VibeBudget.csv'; a.click();
+            window.open(URL.createObjectURL(blob));
         }
+
         window.onload = () => { initChart(); render(); };
     </script>
 </body>
