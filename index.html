@@ -3,135 +3,68 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#0f172a">
     <title>VibeBudget Elite</title>
-    
-    <link rel="manifest" href='data:application/manifest+json,{"name":"VibeBudget Elite","short_name":"VibeBudget","start_url":".","display":"standalone","background_color":"#0f172a","theme_color":"#0f172a","icons":[{"src":"https://fav.farm/💎","sizes":"512x512","type":"image/png"}]}'>
+
+    <link rel="manifest" href='data:application/manifest+json,{"name":"VibeBudget Elite","short_name":"VibeBudget","start_url":"index.html","display":"standalone","background_color":"#0f172a","theme_color":"#0f172a","icons":[{"src":"https://fav.farm/💎","sizes":"512x512","type":"image/png"}]}'>
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="icon" href="https://fav.farm/💎" />
     
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100;300;400;700&display=swap');
-        body { transition: background-color 1s ease; font-family: 'Inter', sans-serif; overflow-x: hidden; margin: 0; background-color: #0f172a; color: white; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100;400;700&display=swap');
+        body { background-color: #0f172a; font-family: 'Inter', sans-serif; color: white; margin: 0; }
         .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(15px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 2.5rem; }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
     </style>
 </head>
 <body class="flex items-center justify-center min-h-screen p-4">
-
-    <div class="w-full max-w-md space-y-6">
-        <div class="text-center">
-            <div class="flex justify-between items-center px-4 mb-4">
-                <button onclick="setNewLimit()" class="text-[10px] uppercase tracking-[0.3em] text-slate-400 hover:text-white transition-all bg-white/5 px-3 py-1 rounded-full">Limit</button>
-                <button onclick="exportCSV()" class="text-[10px] uppercase tracking-[0.3em] text-slate-400 hover:text-emerald-400 transition-all bg-white/5 px-3 py-1 rounded-full">Export</button>
-            </div>
-            <div id="remaining" class="text-7xl font-thin tracking-tighter drop-shadow-2xl">€0.00</div>
-            <div id="daily-vibe" class="mt-3 text-xs font-light tracking-widest uppercase opacity-80 text-emerald-300">Berechne...</div>
+    <div class="w-full max-w-md space-y-6 text-center">
+        <div>
+            <h1 id="remaining" class="text-7xl font-thin tracking-tighter">€0.00</h1>
+            <p id="daily" class="text-emerald-400 text-xs mt-2 uppercase tracking-widest">Berechne...</p>
         </div>
-
-        <div class="glass p-5 shadow-2xl">
-            <canvas id="budgetChart" height="180"></canvas>
+        <div class="glass p-5"><canvas id="budgetChart" height="180"></canvas></div>
+        <div class="glass p-2 flex items-center gap-2">
+            <input type="number" id="amount" inputmode="decimal" placeholder="0.00" class="flex-1 bg-transparent text-2xl p-4 outline-none text-white font-light">
+            <button onclick="add()" class="bg-emerald-500 text-slate-900 w-14 h-14 rounded-2xl font-bold text-3xl active:scale-90 transition-transform">−</button>
         </div>
-
-        <div class="glass p-2 flex items-center gap-2 pr-2">
-            <input type="number" id="amount" inputmode="decimal" placeholder="0.00" 
-                class="flex-1 bg-transparent text-2xl p-4 outline-none border-none focus:ring-0 text-white font-light">
-            <button onclick="addExpense()" id="action-btn"
-                class="bg-emerald-500 text-slate-900 w-14 h-14 rounded-2xl font-bold text-3xl flex items-center justify-center active:scale-75 shadow-lg">−</button>
-        </div>
-
-        <div class="space-y-4">
-            <div class="flex justify-between items-center px-4 text-slate-500">
-                <h2 class="text-[10px] uppercase tracking-[0.2em] font-bold">Aktivität</h2>
-                <button onclick="clearHistory()" class="text-[10px] uppercase tracking-widest hover:text-red-400">Reset</button>
-            </div>
-            <div id="history" class="flex gap-4 overflow-x-auto p-2 no-scrollbar"></div>
-        </div>
+        <button onclick="if(confirm('Reset?')){localStorage.clear();location.reload();}" class="opacity-20 text-[10px] uppercase tracking-widest">Woche zurücksetzen</button>
     </div>
 
     <script>
-        // Service Worker Registrierung (Trick für Android Installation)
+        // Service Worker Trick für Pixel/Chrome
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('data:text/javascript;base64,c2VsZi5hZGRFdmVudExpc3RlbmVyKCdmZXRjaCcsIGV2ID0+IGV2LnJlc3BvbmRXaXRoKGZldGNoKGV2LnJlcXVlc3QpKSk7');
+            navigator.serviceWorker.register('data:text/javascript;base64,c2VsZi5hZGRFdmVudExpc3RlbmVyKCdmZXRjaCcsIGU9PmludmFsaWQp').catch(() => {});
         }
 
-        let state = JSON.parse(localStorage.getItem('vibeBudgetData') || '{"limit":200,"remaining":200,"history":[],"chartData":[200]}');
+        let state = JSON.parse(localStorage.getItem('vibeData') || '{"limit":200,"rem":200,"history":[]}');
         let chart;
 
-        function initChart() {
+        function init() {
             const ctx = document.getElementById('budgetChart').getContext('2d');
             chart = new Chart(ctx, {
                 type: 'line',
-                data: {
-                    labels: state.chartData.map((_, i) => i),
-                    datasets: [{
-                        data: state.chartData,
-                        borderColor: '#ffffff',
-                        borderWidth: 4,
-                        tension: 0.4,
-                        pointRadius: 0,
-                        fill: true,
-                        backgroundColor: 'rgba(255,255,255,0.05)'
-                    }]
-                },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { display: false } } }
+                data: { labels: [0,1,2], datasets: [{ data: [200, 200, 200], borderColor: '#fff', borderWidth: 3, tension: 0.4, pointRadius: 0 }] },
+                options: { plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { display: false } } }
             });
+            render();
         }
 
         function render() {
-            document.getElementById('remaining').innerText = `€${state.remaining.toFixed(2)}`;
-            const daysLeft = 8 - (new Date().getDay() || 7);
-            document.getElementById('daily-vibe').innerText = `€${Math.max(0, state.remaining / daysLeft).toFixed(2)} pro Tag verfügbar`;
-            
-            chart.data.labels = state.chartData.map((_, i) => i);
-            chart.data.datasets[0].data = state.chartData;
-            chart.update();
-
-            document.getElementById('history').innerHTML = state.history.length ? state.history.map(item => `
-                <div class="glass min-w-[140px] p-4 text-center relative border-t-2 border-transparent">
-                    <div class="text-[9px] text-slate-500 mb-1">${item.date}</div>
-                    <div class="font-bold text-xl">€${item.amount.toFixed(2)}</div>
-                </div>
-            `).join('') : '<div class="text-slate-600 text-[10px] p-4">Keine Ausgaben</div>';
-
-            localStorage.setItem('vibeBudgetData', JSON.stringify(state));
+            document.getElementById('remaining').innerText = `€${state.rem.toFixed(2)}`;
+            const days = 8 - (new Date().getDay() || 7);
+            document.getElementById('daily').innerText = `€${Math.max(0, state.rem / days).toFixed(2)} pro Tag verfügbar`;
+            localStorage.setItem('vibeData', JSON.stringify(state));
         }
 
-        function addExpense() {
-            const input = document.getElementById('amount');
-            const val = parseFloat(input.value);
-            if (val > 0) {
-                state.remaining -= val;
-                state.chartData.push(state.remaining);
-                state.history.unshift({ amount: val, date: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) });
-                input.value = '';
-                render();
-            }
+        function add() {
+            const v = parseFloat(document.getElementById('amount').value);
+            if (v > 0) { state.rem -= v; document.getElementById('amount').value = ''; render(); }
         }
 
-        function setNewLimit() {
-            const val = prompt("Neues Wochen-Limit?", state.limit);
-            if (val) { state.limit = parseFloat(val); state.remaining = state.limit; state.chartData = [state.limit]; state.history = []; render(); }
-        }
-
-        function clearHistory() {
-            if(confirm("Woche zurücksetzen?")) { state.remaining = state.limit; state.chartData = [state.limit]; state.history = []; render(); }
-        }
-
-        function exportCSV() {
-            let csv = "Zeit,Betrag\n" + state.history.map(i => `${i.date},${i.amount}`).join("\n");
-            const blob = new Blob([csv], { type: 'text/csv' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a'); a.href = url; a.download = 'VibeBudget.csv'; a.click();
-        }
-
-        window.onload = () => { initChart(); render(); };
+        window.onload = init;
     </script>
 </body>
 </html>
